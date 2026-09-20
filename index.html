@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Маленький принц — путешествие по астероидам</title>
+<style>
+  :root{
+    --night:#0a0f24;
+    --deep:#141b3d;
+    --gold:#e6bd63;
+    --gold-dim:#9a8144;
+    --paper:#f3e7cd;
+    --paper-2:#e7d7b4;
+    --ink:#3a2c1c;
+    --rose:#c8556b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--night);}
+  body{
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    color:var(--paper);
+    -webkit-font-smoothing:antialiased;
+  }
+  canvas{display:block;position:fixed;inset:0}
+
+  /* виньетка поверх сцены */
+  #vignette{
+    position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 45%, rgba(3,5,14,.55) 100%);
+  }
+
+  .panel{
+    background:rgba(10,15,36,.72);
+    border:1px solid rgba(230,189,99,.35);
+    border-radius:2px;
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+  }
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;z-index:5;top:0;left:0;right:0;padding:14px 18px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+  #planetTag{padding:8px 14px}
+  #planetTag .num{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold-dim)}
+  #planetTag .nm{font-size:19px;letter-spacing:.04em;color:var(--gold)}
+  #keys{text-align:right;font-size:12px;line-height:1.7;color:rgba(243,231,205,.55);letter-spacing:.03em}
+  #keys b{color:var(--gold);font-weight:400}
+
+  /* ---------- журнал ---------- */
+  #journal{position:fixed;z-index:5;left:18px;bottom:18px;width:270px;padding:12px 14px;font-size:13px;display:none}
+  #journal h4{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold-dim);font-weight:400;margin-bottom:8px}
+  #journal ul{list-style:none}
+  #journal li{padding:3px 0 3px 18px;position:relative;color:rgba(243,231,205,.72);line-height:1.35}
+  #journal li:before{content:"·";position:absolute;left:4px;color:var(--gold-dim)}
+  #journal li.done{color:rgba(243,231,205,.35);text-decoration:line-through}
+  #journal li.done:before{content:"✦";color:var(--gold);font-size:10px;top:3px;text-decoration:none}
+
+  /* ---------- подсказка действия ---------- */
+  #prompt{
+    position:fixed;z-index:6;left:50%;bottom:110px;transform:translateX(-50%) translateY(8px);
+    padding:9px 18px;font-size:15px;letter-spacing:.02em;opacity:0;transition:opacity .18s, transform .18s;pointer-events:none;white-space:nowrap
+  }
+  #prompt.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  #prompt kbd{
+    display:inline-block;min-width:22px;text-align:center;margin-right:9px;padding:1px 6px;
+    border:1px solid var(--gold);color:var(--gold);border-radius:2px;font-family:inherit;font-size:12px
+  }
+
+  /* ---------- доверие лиса ---------- */
+  #trust{position:fixed;z-index:6;left:50%;bottom:170px;transform:translateX(-50%);width:190px;opacity:0;transition:opacity .3s;pointer-events:none;text-align:center}
+  #trust.on{opacity:1}
+  #trust .lbl{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:6px}
+  #trust .bar{height:3px;background:rgba(230,189,99,.18)}
+  #trust .fill{height:100%;width:0;background:var(--gold);transition:width .2s linear}
+
+  /* ---------- диалог: страница книги ---------- */
+  #dialogue{
+    position:fixed;z-index:8;left:50%;bottom:34px;transform:translateX(-50%) translateY(14px);
+    width:min(760px,calc(100vw - 36px));opacity:0;pointer-events:none;transition:opacity .22s, transform .22s
+  }
+  #dialogue.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+  #dlgCard{
+    position:relative;background:linear-gradient(175deg,#f6ecd6 0%,#ecdcba 100%);
+    color:var(--ink);padding:26px 30px 22px;border-radius:2px;
+    box-shadow:0 20px 60px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.45);
+  }
+  #dlgCard:after{content:"";position:absolute;inset:7px;border:1px solid rgba(58,44,28,.16);pointer-events:none}
+  #dlgWho{font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:#8a6a3c;margin-bottom:10px}
+  #dlgText{font-size:19px;line-height:1.62;min-height:3.2em;letter-spacing:.005em}
+  #dlgText em{font-style:italic;color:#6b533a}
+  #dlgNext{position:absolute;right:22px;bottom:14px;font-size:12px;color:#9a8058;letter-spacing:.1em;animation:blink 1.6s infinite}
+  @keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+  #dlgChoices{margin-top:16px;display:flex;flex-direction:column;gap:7px}
+  #dlgChoices button{
+    font-family:inherit;font-size:16px;text-align:left;padding:9px 14px;color:var(--ink);
+    background:rgba(255,255,255,.42);border:1px solid rgba(58,44,28,.22);border-radius:2px;cursor:pointer;transition:.15s
+  }
+  #dlgChoices button:hover,#dlgChoices button:focus{background:#fff8e8;border-color:#8a6a3c;outline:none;transform:translateX(3px)}
+
+  /* ---------- карта неба ---------- */
+  #map{position:fixed;inset:0;z-index:9;display:none;background:rgba(6,9,22,.9);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);overflow:auto}
+  #map.on{display:block}
+  #mapInner{max-width:960px;margin:0 auto;padding:min(9vh,70px) 24px 60px}
+  #map h2{font-size:13px;letter-spacing:.42em;text-transform:uppercase;color:var(--gold-dim);font-weight:400;text-align:center}
+  #map .sub{text-align:center;color:rgba(243,231,205,.5);font-size:15px;margin:10px 0 34px;font-style:italic}
+  #mapGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+  .pcard{position:relative;padding:18px 18px 20px;text-align:left;cursor:pointer;background:rgba(20,27,61,.55);border:1px solid rgba(230,189,99,.2);color:inherit;font-family:inherit;transition:.18s;border-radius:2px}
+  .pcard:hover{border-color:var(--gold);background:rgba(30,40,85,.7);transform:translateY(-3px)}
+  .pcard .no{font-size:10px;letter-spacing:.3em;color:var(--gold-dim)}
+  .pcard .t{font-size:20px;color:var(--gold);margin:6px 0 8px}
+  .pcard .d{font-size:13.5px;line-height:1.5;color:rgba(243,231,205,.62)}
+  .pcard .here{position:absolute;top:16px;right:16px;font-size:10px;letter-spacing:.2em;color:var(--rose)}
+  .pcard .dot{position:absolute;top:18px;right:16px;width:5px;height:5px;border-radius:50%;background:var(--gold);opacity:.8}
+  #mapClose{display:block;margin:30px auto 0;background:none;border:none;color:rgba(243,231,205,.45);font-family:inherit;font-size:13px;letter-spacing:.2em;cursor:pointer}
+  #mapClose:hover{color:var(--gold)}
+
+  /* ---------- титульный экран ---------- */
+  #title{position:fixed;inset:0;z-index:12;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;
+    background:radial-gradient(ellipse at 50% 30%, #1b2551 0%, #080c1e 70%);transition:opacity .8s}
+  #title.gone{opacity:0;pointer-events:none}
+  #title .eyebrow{font-size:11px;letter-spacing:.5em;text-transform:uppercase;color:var(--gold-dim)}
+  #title h1{font-size:clamp(38px,8vw,74px);font-weight:400;letter-spacing:.02em;color:var(--paper);margin:16px 0 4px;line-height:1}
+  #title h1 span{display:block;font-size:.42em;letter-spacing:.34em;color:var(--gold);margin-top:16px}
+  #title p{max-width:520px;font-size:16px;line-height:1.65;color:rgba(243,231,205,.6);font-style:italic;margin:26px 0 32px}
+  #start{font-family:inherit;font-size:15px;letter-spacing:.24em;text-transform:uppercase;color:var(--night);background:var(--gold);border:none;padding:14px 40px;cursor:pointer;border-radius:1px;transition:.2s}
+  #start:hover{background:#f6d489;transform:translateY(-2px);box-shadow:0 10px 30px rgba(230,189,99,.25)}
+  #ctrl{margin-top:34px;font-size:12.5px;color:rgba(243,231,205,.42);line-height:2;letter-spacing:.04em}
+  #ctrl b{color:var(--gold-dim);font-weight:400}
+
+  /* ---------- затемнение при перелёте ---------- */
+  #fade{position:fixed;inset:0;z-index:11;background:#05070f;opacity:0;pointer-events:none;transition:opacity .55s}
+  #fade.on{opacity:1}
+  #cardTitle{position:fixed;inset:0;z-index:11;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .6s;text-align:center}
+  #cardTitle.on{opacity:1}
+  #cardTitle .n{font-size:11px;letter-spacing:.44em;text-transform:uppercase;color:var(--gold-dim)}
+  #cardTitle .t{font-size:clamp(28px,5vw,46px);color:var(--paper);margin-top:12px;letter-spacing:.04em}
+
+  /* ---------- всплывающие записи ---------- */
+  #toasts{position:fixed;z-index:7;top:74px;right:18px;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none}
+  .toast{padding:9px 15px;font-size:14px;color:var(--paper);animation:tin .4s ease-out, tout .5s ease-in 3.4s forwards}
+  .toast b{color:var(--gold);font-weight:400}
+  @keyframes tin{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+  @keyframes tout{to{opacity:0;transform:translateX(24px)}}
+
+  /* ---------- финал ---------- */
+  #ending{position:fixed;inset:0;z-index:13;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;
+    background:radial-gradient(ellipse at 50% 40%, #1a2350 0%, #06090f 75%)}
+  #ending.on{display:flex}
+  #ending .n{font-size:11px;letter-spacing:.5em;text-transform:uppercase;color:var(--gold-dim)}
+  #ending p{max-width:560px;font-size:19px;line-height:1.75;margin:22px 0;color:rgba(243,231,205,.85)}
+  #ending .sig{font-size:13px;color:var(--gold-dim);letter-spacing:.2em;margin-top:26px}
+  #ending button{margin-top:30px;font-family:inherit;font-size:13px;letter-spacing:.2em;color:var(--gold);background:none;border:1px solid var(--gold-dim);padding:11px 28px;cursor:pointer}
+  #ending button:hover{background:rgba(230,189,99,.12)}
+
+  @media (max-width:640px){
+    #keys{display:none}
+    #journal{display:none !important}
+    #dlgText{font-size:17px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.08s !important}}
+</style>
+</head>
+<body>
+
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="planetTag" class="panel"><div class="num">астероид</div><div class="nm">B-612</div></div>
+  <div id="keys">
+    <b>WASD</b> — ходить &nbsp; <b>Пробел</b> — прыжок<br>
+    <b>мышь</b> — осмотреться &nbsp; <b>Shift</b> — красться<br>
+    <b>E</b> — действие &nbsp; <b>M</b> — карта неба &nbsp; <b>J</b> — записи
+  </div>
+</div>
+
+<div id="journal" class="panel"><h4>Записи принца</h4><ul id="jlist"></ul></div>
+
+<div id="trust"><div class="lbl">Лис привыкает</div><div class="bar"><div class="fill" id="trustFill"></div></div></div>
+
+<div id="prompt" class="panel"></div>
+
+<div id="dialogue">
+  <div id="dlgCard">
+    <div id="dlgWho"></div>
+    <div id="dlgText"></div>
+    <div id="dlgChoices"></div>
+    <div id="dlgNext">далее ▸</div>
+  </div>
+</div>
+
+<div id="map">
+  <div id="mapInner">
+    <h2>Карта неба</h2>
+    <div class="sub">Стая перелётных птиц отнесёт тебя, куда захочешь</div>
+    <div id="mapGrid"></div>
+    <button id="mapClose">остаться здесь</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+<div id="fade"></div>
+<div id="cardTitle"><div class="n" id="ctN"></div><div class="t" id="ctT"></div></div>
+
+<div id="ending">
+  <div class="n">конец путешествия</div>
+  <p id="endText"></p>
+  <div class="sig">по мотивам сказки Антуана де Сент-Экзюпери</div>
+  <button onclick="location.reload()">начать заново</button>
+</div>
+
+<div id="title">
+  <div class="eyebrow">маленькая игра о больших вещах</div>
+  <h1>Маленький принц<span>шесть астероидов</span></h1>
+  <p>Ты живёшь на планете размером с дом. У тебя три вулкана, один капризный цветок и целое небо, по которому можно путешествовать вместе с птицами.</p>
+  <button id="start">Отправиться в путь</button>
+  <div id="ctrl">
+    <b>WASD</b> ходить · <b>мышь</b> осмотреться · <b>Пробел</b> прыжок<br>
+    <b>E</b> действие и разговор · <b>M</b> карта неба · <b>J</b> записи · <b>Shift</b> идти медленно
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============================================================
+   МАЛЕНЬКИЙ ПРИНЦ — 3D-путешествие по шести астероидам
+   Ходьба по сферам, диалоги, перелёты между планетами.
+   ============================================================ */
+
+// ---------- мелкие помощники ----------
+const V = (x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const DEG=Math.PI/180;
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function mat(color,o={}){return new THREE.MeshStandardMaterial(Object.assign({color,roughness:.9,metalness:0,flatShading:true},o));}
+function smoothMat(color,o={}){return new THREE.MeshStandardMaterial(Object.assign({color,roughness:.95,metalness:0},o));}
+function dirLL(lat,lon){const a=lat*DEG,b=lon*DEG;return V(Math.cos(a)*Math.sin(b),Math.sin(a),Math.cos(a)*Math.cos(b));}
+function alignUp(obj,dir){obj.quaternion.setFromUnitVectors(V(0,1,0),dir);}
+
+function mesh(geo,material,cast=true,receive=false){
+  const m=new THREE.Mesh(geo,material);m.castShadow=cast;m.receiveShadow=receive;return m;
+}
+
+// ---------- сцена ----------
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x05070f);
+const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,4000);
+
+const hemi=new THREE.HemisphereLight(0x9fb4ff,0x2a2030,.55);scene.add(hemi);
+const ambient=new THREE.AmbientLight(0xffffff,.22);scene.add(ambient);
+const sun=new THREE.DirectionalLight(0xfff0cc,1.35);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.near=1;sun.shadow.camera.far=260;
+sun.shadow.camera.left=-45;sun.shadow.camera.right=45;
+sun.shadow.camera.top=45;sun.shadow.camera.bottom=-45;
+sun.shadow.bias=-0.0012;
+scene.add(sun);scene.add(sun.target);
+
+// солнечный диск
+const sunDisc=mesh(new THREE.SphereGeometry(34,20,16),new THREE.MeshBasicMaterial({color:0xffe6a8}),false);
+scene.add(sunDisc);
+const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');
+  const gr=g.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(255,230,170,.9)');gr.addColorStop(.35,'rgba(255,200,120,.32)');gr.addColorStop(1,'rgba(255,190,110,0)');
+  g.fillStyle=gr;g.fillRect(0,0,128,128);return new THREE.CanvasTexture(c);})();
+const sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+sunGlow.scale.set(340,340,1);scene.add(sunGlow);
+
+// звёзды
+(function stars(){
+  const n=2600,pos=new Float32Array(n*3),r=rng(7);
+  for(let i=0;i<n;i++){const u=r()*2-1,t=r()*Math.PI*2,s=Math.sqrt(1-u*u),R=1400+r()*900;
+    pos[i*3]=Math.cos(t)*s*R;pos[i*3+1]=u*R;pos[i*3+2]=Math.sin(t)*s*R;}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:2.2,sizeAttenuation:false,transparent:true,opacity:.85})));
+})();
+
+// далёкие астероиды на небе
+const farPlanets=new THREE.Group();scene.add(farPlanets);
+[[0xb98a5a,-500,300,-800,26],[0x7d6bb0,700,-200,-700,20],[0x5a8f88,-800,-260,500,17],
+ [0xc0745a,600,420,600,22],[0x8fa5c4,120,-520,-900,15],[0x6b8f5a,-300,560,760,19]].forEach(p=>{
+  const m=mesh(new THREE.SphereGeometry(p[4],14,10),mat(p[0],{roughness:1}),false);
+  m.position.set(p[1],p[2],p[3]);farPlanets.add(m);
+});
+
+// ============================================================
+//  МОДЕЛИ
+// ============================================================
+function label(text){
+  const c=document.createElement('canvas');c.width=512;c.height=128;
+  const x=c.getContext('2d');
+  x.font='600 52px Georgia, serif';x.textAlign='center';x.textBaseline='middle';
+  const w=x.measureText(text).width+56;
+  x.fillStyle='rgba(8,12,30,.6)';x.fillRect(256-w/2,34,w,60);
+  x.strokeStyle='rgba(230,189,99,.55)';x.lineWidth=2;x.strokeRect(256-w/2,34,w,60);
+  x.fillStyle='#f0e2c0';x.fillText(text,256,66);
+  const t=new THREE.CanvasTexture(c);t.anisotropy=4;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false}));
+  s.scale.set(4.4,1.1,1);s.renderOrder=5;return s;
+}
+
+function eyes(parent,y,z,r=.045,sp=.13){
+  const g=new THREE.SphereGeometry(r,8,6),m=mat(0x201a16,{flatShading:false});
+  const a=mesh(g,m,false),b=mesh(g,m,false);
+  a.position.set(-sp,y,z);b.position.set(sp,y,z);parent.add(a,b);
+}
+
+// Маленький принц
+function makePrince(){
+  const g=new THREE.Group();
+  const coatC=0x2f6b57, skinC=0xf2cfa8, hairC=0xf0c246, scarfC=0xf5d76e;
+  const legs=[];
+  for(const s of[-1,1]){
+    const l=mesh(new THREE.CylinderGeometry(.085,.07,.55,7),mat(0x24303f));
+    l.position.set(.13*s,.28,0);g.add(l);legs.push(l);
+    const f=mesh(new THREE.BoxGeometry(.16,.09,.26),mat(0x1a2230));
+    f.position.set(0,-.3,.05);l.add(f);
+  }
+  const body=mesh(new THREE.CylinderGeometry(.28,.42,.85,9),mat(coatC));
+  body.position.y=.94;g.add(body);
+  // золотые звёзды на кафтане
+  for(let i=0;i<5;i++){
+    const st=mesh(new THREE.TetrahedronGeometry(.055),mat(0xf0c246,{emissive:0x5a4410}),false);
+    const a=i/5*Math.PI*2;st.position.set(Math.cos(a)*.33,.9+(i%2)*.22,Math.sin(a)*.33);g.add(st);
+  }
+  const belt=mesh(new THREE.TorusGeometry(.3,.035,6,14),mat(0x8a5a3a));
+  belt.rotation.x=Math.PI/2;belt.position.y=.66;g.add(belt);
+  const arms=[];
+  for(const s of[-1,1]){
+    const a=mesh(new THREE.CylinderGeometry(.07,.055,.6,6),mat(coatC));
+    a.position.set(.36*s,1.12,0);a.rotation.z=.28*s;g.add(a);arms.push(a);
+    const h=mesh(new THREE.SphereGeometry(.075,8,6),mat(skinC,{flatShading:false}),false);
+    h.position.y=-.33;a.add(h);
+  }
+  const head=mesh(new THREE.SphereGeometry(.32,16,12),mat(skinC,{flatShading:false}));
+  head.position.y=1.65;g.add(head);
+  eyes(head,.04,.29,.05,.12);
+  const hair=mesh(new THREE.SphereGeometry(.345,14,10),mat(hairC));
+  hair.position.set(0,1.72,-.02);hair.scale.set(1,.9,1);g.add(hair);
+  for(let i=0;i<9;i++){
+    const s=mesh(new THREE.ConeGeometry(.075,.3,5),mat(hairC));
+    const a=i/9*Math.PI*2, t=.55+Math.random()*.5;
+    s.position.set(Math.cos(a)*.26*Math.sin(t),1.72+Math.cos(t)*.3,Math.sin(a)*.26*Math.sin(t));
+    s.lookAt(s.position.clone().multiplyScalar(2).add(V(0,.4,0)));s.rotateX(Math.PI/2);g.add(s);
+  }
+  // шарф
+  const scarf=new THREE.Group();scarf.position.set(0,1.38,0);g.add(scarf);
+  const collar=mesh(new THREE.TorusGeometry(.24,.055,6,12),mat(scarfC));
+  collar.rotation.x=Math.PI/2;scarf.add(collar);
+  const tails=[];
+  for(let i=0;i<5;i++){
+    const t=mesh(new THREE.BoxGeometry(.26,.3,.05),mat(scarfC));
+    t.position.set(0,-i*.26,-.2-i*.12);scarf.add(t);tails.push(t);
+  }
+  // шпага
+  const sw=mesh(new THREE.BoxGeometry(.035,.75,.035),mat(0xd8d2c4));
+  sw.position.set(.34,.85,-.16);sw.rotation.x=-.3;g.add(sw);
+  return {group:g,legs,arms,tails,head,hair};
+}
+
+// универсальный житель планеты
+function person(o){
+  const g=new THREE.Group();
+  const robe=mesh(new THREE.CylinderGeometry(o.top||.3,o.bot||.75,o.h||1.4,o.seg||9),mat(o.coat));
+  robe.position.y=(o.h||1.4)/2;g.add(robe);
+  const head=mesh(new THREE.SphereGeometry(.3,16,12),mat(o.skin||0xf0cfa6,{flatShading:false}));
+  head.position.y=(o.h||1.4)+.26;g.add(head);
+  eyes(head,.03,.27);
+  if(o.beard){
+    const b=mesh(new THREE.ConeGeometry(.24,.55,8),mat(o.beard));
+    b.position.set(0,(o.h||1.4)+.02,.13);b.rotation.x=Math.PI;g.add(b);
+  }
+  if(o.hair){
+    const h=mesh(new THREE.SphereGeometry(.315,12,9),mat(o.hair));
+    h.position.set(0,(o.h||1.4)+.33,-.02);h.scale.y=.75;g.add(h);
+  }
+  const arms=[];
+  for(const s of[-1,1]){
+    const a=mesh(new THREE.CylinderGeometry(.06,.05,.55,6),mat(o.coat));
+    a.position.set((o.armX||.36)*s,(o.h||1.4)*.72,0);a.rotation.z=.3*s;g.add(a);arms.push(a);
+  }
+  return {group:g,head,arms};
+}
+
+// Роза
+function makeRose(scale=1){
+  const g=new THREE.Group();
+  const stem=mesh(new THREE.CylinderGeometry(.05,.07,1.5,6),mat(0x4f7a3a));
+  stem.position.y=.75;g.add(stem);
+  for(let i=0;i<4;i++){
+    const l=mesh(new THREE.SphereGeometry(.22,7,5),mat(0x5c8c42));
+    l.scale.set(1,.18,.55);l.position.set(0,.45+i*.22,0);
+    l.rotation.y=i*1.9;l.translateZ(.24);g.add(l);
+  }
+  const bud=new THREE.Group();bud.position.y=1.55;g.add(bud);
+  const core=mesh(new THREE.SphereGeometry(.2,10,8),mat(0xa3384f));bud.add(core);
+  for(let i=0;i<7;i++){
+    const p=mesh(new THREE.SphereGeometry(.26,8,6),mat(0xd4576e));
+    p.scale.set(1,.55,.4);
+    const a=i/7*Math.PI*2;
+    p.position.set(Math.cos(a)*.2,.06+ (i%2)*.06,Math.sin(a)*.2);
+    p.lookAt(p.position.clone().multiplyScalar(3));bud.add(p);
+  }
+  const top=mesh(new THREE.SphereGeometry(.15,8,6),mat(0xe0788c));top.position.y=.18;bud.add(top);
+  g.scale.setScalar(scale);
+  return {group:g,bud};
+}
+
+// стеклянный колпак
+function makeDome(){
+  const g=new THREE.Group();
+  const s=mesh(new THREE.SphereGeometry(1.05,20,14,0,Math.PI*2,0,Math.PI/2),
+    new THREE.MeshStandardMaterial({color:0xbfe4f0,transparent:true,opacity:.24,roughness:.06,metalness:.1,side:THREE.DoubleSide}),false);
+  s.scale.y=1.9;g.add(s);
+  const k=mesh(new THREE.SphereGeometry(.13,10,8),mat(0xd8eef5,{transparent:true,opacity:.55}),false);
+  k.position.y=1.82;g.add(k);
+  const rim=mesh(new THREE.TorusGeometry(.95,.045,6,20),mat(0xa9c8d4),false);
+  rim.rotation.x=Math.PI/2;g.add(rim);
+  return g;
+}
+
+// вулкан
+function makeVolcano(active){
+  const g=new THREE.Group();
+  const c=mesh(new THREE.ConeGeometry(1.5,2.1,9),mat(active?0x8c5a4a:0x6d6a66),true,true);
+  c.position.y=1.05;g.add(c);
+  const crater=mesh(new THREE.CylinderGeometry(.55,.35,.4,9),mat(active?0x3a2420:0x4a4744),false);
+  crater.position.y=2.0;g.add(crater);
+  const puffs=[];
+  if(active){
+    const lava=mesh(new THREE.CylinderGeometry(.5,.5,.05,9),new THREE.MeshBasicMaterial({color:0xff9d4a}),false);
+    lava.position.y=2.12;g.add(lava);
+    for(let i=0;i<5;i++){
+      const p=mesh(new THREE.SphereGeometry(.3+Math.random()*.2,7,5),
+        new THREE.MeshStandardMaterial({color:0xd8d0c4,transparent:true,opacity:.5,flatShading:true}),false);
+      p.userData.t=i/5;g.add(p);puffs.push(p);
+    }
+  }
+  return {group:g,puffs,active};
+}
+
+// росток баобаба
+function makeBaobab(){
+  const g=new THREE.Group();
+  const t=mesh(new THREE.CylinderGeometry(.07,.13,.75,6),mat(0x5a4632));
+  t.position.y=.37;g.add(t);
+  for(let i=0;i<3;i++){
+    const l=mesh(new THREE.SphereGeometry(.26,7,5),mat(0x486b3c));
+    l.scale.set(1,.45,1);
+    const a=i/3*Math.PI*2;l.position.set(Math.cos(a)*.18,.78+Math.random()*.14,Math.sin(a)*.18);g.add(l);
+  }
+  return g;
+}
+
+// скамейка
+function makeBench(){
+  const g=new THREE.Group();
+  const seat=mesh(new THREE.BoxGeometry(1.9,.12,.62),mat(0x7a5a3c));seat.position.y=.5;g.add(seat);
+  const back=mesh(new THREE.BoxGeometry(1.9,.55,.1),mat(0x6d4f34));back.position.set(0,.82,-.26);g.add(back);
+  for(const s of[-1,1]){
+    const l=mesh(new THREE.BoxGeometry(.12,.5,.5),mat(0x5c422c));l.position.set(.8*s,.25,0);g.add(l);
+  }
+  return g;
+}
+
+// фонарь
+function makeLamp(){
+  const g=new THREE.Group();
+  const base=mesh(new THREE.CylinderGeometry(.35,.5,.25,10),mat(0x3d4450));base.position.y=.12;g.add(base);
+  const pole=mesh(new THREE.CylinderGeometry(.09,.12,3.3,8),mat(0x4a525f));pole.position.y=1.7;g.add(pole);
+  const head=new THREE.Group();head.position.y=3.45;g.add(head);
+  const box=mesh(new THREE.BoxGeometry(.55,.7,.55),mat(0x3d4450));head.add(box);
+  const glass=mesh(new THREE.BoxGeometry(.42,.55,.42),new THREE.MeshBasicMaterial({color:0xffd98a}),false);
+  head.add(glass);
+  const cap=mesh(new THREE.ConeGeometry(.48,.35,4),mat(0x333a45));cap.position.y=.5;cap.rotation.y=Math.PI/4;head.add(cap);
+  const light=new THREE.PointLight(0xffcf7a,0,22,2);light.position.y=3.4;g.add(light);
+  return {group:g,glass,light};
+}
+
+// колодец
+function makeWell(){
+  const g=new THREE.Group();
+  const ring=mesh(new THREE.CylinderGeometry(1.15,1.25,.75,14),mat(0x9c9084),true,true);ring.position.y=.38;g.add(ring);
+  const hole=mesh(new THREE.CylinderGeometry(.95,.95,.1,14),new THREE.MeshBasicMaterial({color:0x0b0f18}),false);
+  hole.position.y=.72;g.add(hole);
+  for(const s of[-1,1]){
+    const p=mesh(new THREE.CylinderGeometry(.09,.09,2.3,6),mat(0x7a6248));p.position.set(1.05*s,1.15,0);g.add(p);
+  }
+  const beam=mesh(new THREE.BoxGeometry(2.5,.14,.16),mat(0x6d5740));beam.position.y=2.3;g.add(beam);
+  const wheel=mesh(new THREE.TorusGeometry(.28,.07,6,12),mat(0x5c4a36));wheel.position.y=2.14;g.add(wheel);
+  const rope=mesh(new THREE.CylinderGeometry(.02,.02,1.3,4),mat(0xd8c9a8),false);rope.position.y=1.5;g.add(rope);
+  const bucket=mesh(new THREE.CylinderGeometry(.24,.19,.34,8),mat(0x8a6a48));bucket.position.y=.75;g.add(bucket);
+  return {group:g,bucket};
+}
+
+// лис
+function makeFox(){
+  const g=new THREE.Group();
+  const or=0xd8792f, wh=0xf2e6d2;
+  const body=mesh(new THREE.SphereGeometry(.5,12,9),mat(or));
+  body.scale.set(1,.78,1.5);body.position.y=.55;g.add(body);
+  const chest=mesh(new THREE.SphereGeometry(.3,10,8),mat(wh));
+  chest.scale.set(1,.7,1.1);chest.position.set(0,.42,.42);g.add(chest);
+  const head=new THREE.Group();head.position.set(0,.86,.6);g.add(head);
+  const hh=mesh(new THREE.SphereGeometry(.32,12,9),mat(or));hh.scale.set(1,.9,1);head.add(hh);
+  const snout=mesh(new THREE.ConeGeometry(.17,.42,8),mat(wh));
+  snout.rotation.x=Math.PI/2;snout.position.z=.32;head.add(snout);
+  const nose=mesh(new THREE.SphereGeometry(.06,8,6),mat(0x2b211b),false);nose.position.z=.53;head.add(nose);
+  eyes(head,.08,.26,.055,.14);
+  for(const s of[-1,1]){
+    const e=mesh(new THREE.ConeGeometry(.15,.4,4),mat(or));
+    e.position.set(.19*s,.34,-.02);e.rotation.z=-.25*s;head.add(e);
+    const ei=mesh(new THREE.ConeGeometry(.08,.24,4),mat(0x3a2b22),false);ei.position.y=-.03;ei.position.z=.05;e.add(ei);
+  }
+  const legs=[];
+  for(const sx of[-1,1])for(const sz of[-1,1]){
+    const l=mesh(new THREE.CylinderGeometry(.09,.07,.55,6),mat(0x8c4a22));
+    l.position.set(.24*sx,.28,.42*sz);g.add(l);legs.push(l);
+  }
+  const tail=new THREE.Group();tail.position.set(0,.6,-.7);g.add(tail);
+  const t1=mesh(new THREE.SphereGeometry(.26,10,7),mat(or));t1.scale.set(1,1,1.6);t1.position.z=-.28;tail.add(t1);
+  const t2=mesh(new THREE.SphereGeometry(.2,10,7),mat(wh));t2.position.z=-.72;tail.add(t2);
+  return {group:g,head,tail,legs};
+}
+
+// змея
+function makeSnake(){
+  const g=new THREE.Group();
+  const pts=[];
+  for(let i=0;i<=60;i++){
+    const t=i/60,a=t*Math.PI*5.2,r=.95*(1-t*.72);
+    pts.push(V(Math.cos(a)*r,t*t*1.4+.14,Math.sin(a)*r));
+  }
+  const curve=new THREE.CatmullRomCurve3(pts);
+  const body=mesh(new THREE.TubeGeometry(curve,90,.15,7,false),mat(0xd9b452,{flatShading:false}));
+  g.add(body);
+  const head=mesh(new THREE.SphereGeometry(.22,10,8),mat(0xd9b452,{flatShading:false}));
+  head.scale.set(.8,.7,1.3);
+  const end=curve.getPoint(1);head.position.copy(end);
+  head.lookAt(end.clone().add(curve.getTangent(1)));g.add(head);
+  eyes(head,.06,.16,.035,.09);
+  return {group:g,head};
+}
+
+// самолёт лётчика
+function makePlane(){
+  const g=new THREE.Group();
+  const body=mesh(new THREE.CylinderGeometry(.42,.28,3.4,9),mat(0x9c9488));
+  body.rotation.x=Math.PI/2;body.position.y=.75;g.add(body);
+  const wing=mesh(new THREE.BoxGeometry(5.2,.12,1.1),mat(0xb0a696));wing.position.y=.95;wing.rotation.z=.06;g.add(wing);
+  const tail=mesh(new THREE.BoxGeometry(1.5,.1,.6),mat(0xb0a696));tail.position.set(0,.95,-1.5);g.add(tail);
+  const fin=mesh(new THREE.BoxGeometry(.1,.7,.6),mat(0xa2988a));fin.position.set(0,1.3,-1.55);g.add(fin);
+  const prop=mesh(new THREE.BoxGeometry(.12,1.9,.1),mat(0x6d6357));prop.position.set(0,.78,1.75);g.add(prop);
+  const cock=mesh(new THREE.SphereGeometry(.3,10,8),mat(0x3d4a55,{transparent:true,opacity:.5}),false);
+  cock.position.set(0,1.12,.2);g.add(cock);
+  for(const s of[-1,1]){
+    const w=mesh(new THREE.CylinderGeometry(.3,.3,.14,10),mat(0x40382e));
+    w.rotation.z=Math.PI/2;w.position.set(.9*s,.2,.5);g.add(w);
+  }
+  g.rotation.z=.13;
+  return {group:g,prop};
+}
+
+// ящик с барашком
+function makeBox(){
+  const g=new THREE.Group();
+  const b=mesh(new THREE.BoxGeometry(.8,.6,.6),mat(0xc9a86e));g.add(b);
+  for(let i=0;i<3;i++){
+    const h=mesh(new THREE.CircleGeometry(.07,8),new THREE.MeshBasicMaterial({color:0x2a2118}),false);
+    h.position.set(-.2+i*.2,.05,.31);g.add(h);
+  }
+  return g;
+}
+function makeSheep(){
+  const g=new THREE.Group();
+  const b=mesh(new THREE.SphereGeometry(.38,10,8),mat(0xf0ece2));b.scale.set(1,.85,1.25);b.position.y=.5;g.add(b);
+  for(let i=0;i<7;i++){
+    const p=mesh(new THREE.SphereGeometry(.2,8,6),mat(0xf6f2e8));
+    const a=i/7*Math.PI*2;p.position.set(Math.cos(a)*.3,.55+Math.sin(a*2)*.12,Math.sin(a)*.36);g.add(p);
+  }
+  const h=mesh(new THREE.SphereGeometry(.2,10,8),mat(0x3a3a3f));h.position.set(0,.6,.5);g.add(h);
+  eyes(h,.04,.17,.035,.08);
+  for(const sx of[-1,1])for(const sz of[-1,1]){
+    const l=mesh(new THREE.CylinderGeometry(.05,.05,.35,5),mat(0x33333a));l.position.set(.17*sx,.18,.22*sz);g.add(l);
+  }
+  return g;
+}
+
+// стая перелётных птиц
+function makeBirds(){
+  const g=new THREE.Group();
+  const post=mesh(new THREE.CylinderGeometry(.14,.22,1.5,7),mat(0x6d5a44));post.position.y=.75;g.add(post);
+  const sign=mesh(new THREE.BoxGeometry(1.1,.5,.08),mat(0x8a6f4e));sign.position.y=1.6;g.add(sign);
+  const flock=new THREE.Group();flock.position.y=3.2;g.add(flock);
+  const birds=[];
+  for(let i=0;i<9;i++){
+    const b=new THREE.Group();
+    for(const s of[-1,1]){
+      const w=mesh(new THREE.BoxGeometry(.42,.04,.13),mat(0xf0e6d2),false);
+      w.position.x=.2*s;w.rotation.z=.35*s;b.add(w);
+    }
+    b.userData={a:i/9*Math.PI*2,r:1.6+Math.random()*1.4,y:Math.random()*1.2,sp:.7+Math.random()*.5};
+    flock.add(b);birds.push(b);
+  }
+  return {group:g,birds};
+}
+
+// пшеница
+function makeWheat(count,spread,r){
+  const g=new THREE.Group();
+  for(let i=0;i<count;i++){
+    const s=mesh(new THREE.CylinderGeometry(.012,.02,.85+r()*.4,4),mat(0xd9b95c),false);
+    s.position.set((r()-.5)*spread,.45,(r()-.5)*spread);
+    s.rotation.z=(r()-.5)*.3;s.rotation.x=(r()-.5)*.3;g.add(s);
+    const ear=mesh(new THREE.ConeGeometry(.055,.3,5),mat(0xe8cf7a),false);
+    ear.position.y=.55;s.add(ear);
+  }
+  return g;
+}
+
+function makeThrone(){
+  const g=new THREE.Group();
+  const seat=mesh(new THREE.BoxGeometry(1.5,.2,1.3),mat(0x7a4a6a));seat.position.y=.9;g.add(seat);
+  const back=mesh(new THREE.BoxGeometry(1.5,1.8,.18),mat(0x6b3f5e));back.position.set(0,1.8,-.56);g.add(back);
+  const crown=mesh(new THREE.ConeGeometry(.28,.5,6),mat(0xe0b84a));crown.position.set(0,2.85,-.56);g.add(crown);
+  for(const sx of[-1,1])for(const sz of[-1,1]){
+    const l=mesh(new THREE.CylinderGeometry(.11,.11,.9,6),mat(0x5c3550));l.position.set(.6*sx,.45,.5*sz);g.add(l);
+  }
+  const carpet=mesh(new THREE.BoxGeometry(2.6,.05,5),mat(0x8f3f4f),false,true);
+  carpet.position.set(0,.03,2.6);g.add(carpet);
+  return g;
+}
+
+function makeDesk(){
+  const g=new THREE.Group();
+  const top=mesh(new THREE.BoxGeometry(2.2,.12,1.2),mat(0x6b4f38));top.position.y=.95;g.add(top);
+  for(const sx of[-1,1])for(const sz of[-1,1]){
+    const l=mesh(new THREE.CylinderGeometry(.07,.07,.95,6),mat(0x5a412d));l.position.set(.95*sx,.48,.45*sz);g.add(l);
+  }
+  for(let i=0;i<9;i++){
+    const p=mesh(new THREE.BoxGeometry(.42,.02,.55),mat(0xece3cf),false);
+    p.position.set(-.6+Math.random()*1.3,1.02+i*.012,-.2+Math.random()*.6);
+    p.rotation.y=Math.random()*.6-.3;g.add(p);
+  }
+  const ink=mesh(new THREE.CylinderGeometry(.1,.12,.18,8),mat(0x2c3242));ink.position.set(.85,1.1,-.3);g.add(ink);
+  return g;
+}
+
+function makeRock(r,seed){
+  const rr=rng(seed);
+  const geo=new THREE.IcosahedronGeometry(r,0);
+  const p=geo.attributes.position,v=V();
+  for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).multiplyScalar(.8+rr()*.5);p.setXYZ(i,v.x,v.y,v.z);}
+  geo.computeVertexNormals();
+  return mesh(geo,mat(0x8d8175),true,true);
+}
+</script>
+<script>
+// ============================================================
+//  ПЛАНЕТЫ
+// ============================================================
+const state={
+  visited:new Set(),
+  volcanoes:0, baobabs:0, sunsets:0, domePlaced:false, roseTalked:false,
+  kingDone:false, vainIntro:false, vainClaps:0, vainDone:false, bizDone:false, lampDone:false,
+  foxTrust:0, foxTamed:false, hasSheep:false, sheepFreed:false, snakeMet:false,
+  wellDrunk:false, gardenSeen:false, ended:false
+};
+
+function bumpField(list){
+  return d=>{
+    let h=0;
+    for(const b of list){
+      const ang=Math.acos(clamp(d.dot(b.dir),-1,1));
+      if(ang<b.r){const t=1-ang/b.r;h+=b.h*t*t*(3-2*t);}
+    }
+    return h;
+  };
+}
+function randomBumps(seed,n,rad,hgt){
+  const r=rng(seed),out=[];
+  for(let i=0;i<n;i++){
+    const u=r()*2-1,t=r()*Math.PI*2,s=Math.sqrt(1-u*u);
+    out.push({dir:V(Math.cos(t)*s,u,Math.sin(t)*s),r:rad*(.6+r()*.8),h:hgt*(.5+r())});
+  }
+  return out;
+}
+
+const PLANETS={
+  b612:{
+    key:'b612', num:'астероид', name:'B-612', short:'Дом',
+    desc:'Три вулкана, ростки баобабов и цветок, который считает себя единственным в мире.',
+    radius:18, ground:0xb2915e, hemi:[0xcbb794,0x3a2c1c,.5], sunColor:0xfff0cc,
+    spawn:[6,-40],
+    bumps:randomBumps(11,7,.5,1.1)
+  },
+  king:{
+    key:'king', num:'астероид 325', name:'Планета Короля', short:'Король',
+    desc:'Один трон, одна мантия и подданный, которого он ждал всю жизнь.',
+    radius:13, ground:0x6a5a78, hemi:[0xb8a8d0,0x2a2438,.45], sunColor:0xffe8d8,
+    spawn:[0,140], bumps:randomBumps(22,5,.45,.7)
+  },
+  vain:{
+    key:'vain', num:'астероид 326', name:'Планета Честолюбца', short:'Честолюбец',
+    desc:'Здесь ждут аплодисментов. Больше здесь нет ничего.',
+    radius:12, ground:0x8a6a5c, hemi:[0xd8b8a0,0x30241e,.45], sunColor:0xffeccf,
+    spawn:[0,150], bumps:randomBumps(33,4,.5,.6)
+  },
+  biz:{
+    key:'biz', num:'астероид 328', name:'Планета Делового человека', short:'Деловой человек',
+    desc:'Пятьсот миллионов звёзд, и все аккуратно записаны в бумаги.',
+    radius:13, ground:0x5e6a72, hemi:[0xa8bcc8,0x22282e,.45], sunColor:0xe8f0ff,
+    spawn:[0,150], bumps:randomBumps(44,5,.4,.6)
+  },
+  lamp:{
+    key:'lamp', num:'астероид 329', name:'Планета Фонарщика', short:'Фонарщик',
+    desc:'Оборот вокруг оси — одна минута. Значит, минута — это целые сутки.',
+    radius:10, ground:0x4a5262, hemi:[0x8fa0c0,0x1c2028,.4], sunColor:0xffe0b0,
+    spawn:[0,150], spin:0.26, bumps:randomBumps(55,4,.4,.5)
+  },
+  earth:{
+    key:'earth', num:'планета', name:'Земля, кусочек пустыни', short:'Земля',
+    desc:'Песок, колодец, розовый сад, змея, сломанный самолёт и один рыжий Лис.',
+    radius:30, ground:0xd8bb84, hemi:[0xf0dcb0,0x4a3a24,.55], sunColor:0xfff2d0,
+    spawn:[0,0], bumps:randomBumps(66,16,.42,1.6)
+  }
+};
+Object.values(PLANETS).forEach(p=>{p.heightAt=bumpField(p.bumps);});
+
+// текущий мир
+const world={planet:null,group:null,inter:[],actors:[],sunAngle:.6,spin:0};
+
+function addInter(pos,radius,label,fn,opts={}){
+  const it={pos:pos.clone(),radius,label,fn,once:opts.once!==false,used:false,cond:opts.cond||null,dyn:opts.dyn||null};
+  world.inter.push(it);return it;
+}
+function placeOn(obj,lat,lon,yaw=0,up=0){
+  const d=dirLL(lat,lon),P=world.planet;
+  obj.position.copy(d).multiplyScalar(P.radius+P.heightAt(d)+up);
+  alignUp(obj,d);
+  if(yaw)obj.rotateY(yaw);
+  return d;
+}
+function surfacePos(lat,lon,up=0){
+  const d=dirLL(lat,lon),P=world.planet;
+  return d.clone().multiplyScalar(P.radius+P.heightAt(d)+up);
+}
+</script>
+<script>
+// ============================================================
+//  СТРОИТЕЛЬСТВО ПЛАНЕТ
+// ============================================================
+function planetMesh(P){
+  const g=new THREE.SphereGeometry(P.radius,110,72);
+  const p=g.attributes.position,v=V(),d=V();
+  for(let i=0;i<p.count;i++){
+    v.fromBufferAttribute(p,i);d.copy(v).normalize();
+    v.copy(d).multiplyScalar(P.radius+P.heightAt(d));
+    p.setXYZ(i,v.x,v.y,v.z);
+  }
+  g.computeVertexNormals();
+  const m=mesh(g,smoothMat(P.ground),false,true);
+  return m;
+}
+
+function buildPlanet(key){
+  const P=PLANETS[key];
+  world.planet=P;world.inter=[];world.actors=[];world.spin=P.spin||0;
+  const g=new THREE.Group();world.group=g;scene.add(g);
+  g.add(planetMesh(P));
+  hemi.color.setHex(P.hemi[0]);hemi.groundColor.setHex(P.hemi[1]);hemi.intensity=P.hemi[2];
+  sun.color.setHex(P.sunColor);
+  ({b612:buildB612,king:buildKing,vain:buildVain,biz:buildBiz,lamp:buildLamp,earth:buildEarth})[key](P,g);
+  // стая птиц — на каждой планете
+  const birds=makeBirds();
+  const bd=placeOn(birds.group,-46,P.key==='earth'?46:100);
+  g.add(birds.group);
+  world.actors.push(t=>{birds.birds.forEach(b=>{
+    const u=b.userData;const a=u.a+t*u.sp;
+    b.position.set(Math.cos(a)*u.r,u.y+Math.sin(t*1.7+u.a)*.35,Math.sin(a)*u.r);
+    b.rotation.y=-a;b.children.forEach((w,i)=>{w.rotation.z=(i?1:-1)*(.25+Math.sin(t*7+u.a)*.5);});
+  });});
+  addInter(bd.clone().multiplyScalar(P.radius+P.heightAt(bd)),4.2,'Позвать перелётных птиц',()=>openMap(),{once:false});
+  state.visited.add(key);
+  return P;
+}
+
+// ---------- B-612 ----------
+function buildB612(P,g){
+  // вулканы
+  const vols=[[14,20,true],[6,52,true],[-4,34,false]];
+  vols.forEach((v,i)=>{
+    const vol=makeVolcano(v[2]);
+    const d=placeOn(vol.group,v[0],v[1]);g.add(vol.group);
+    vol.puffs.forEach(p=>g.add(p));   // дым живёт в координатах планеты
+    if(v[2]){
+      const base=vol.group.position.clone();
+      world.actors.push(t=>{vol.puffs.forEach((p,j)=>{
+        const k=((t*.28+p.userData.t)%1);
+        p.position.copy(base).addScaledVector(d,2.2+k*5.5);
+        p.position.x+=Math.sin(t+j)*k*1.2;p.position.z+=Math.cos(t*1.2+j)*k*1.2;
+        p.scale.setScalar(.5+k*1.6);p.material.opacity=.55*(1-k);
+      });});
+    }
+    addInter(vol.group.position.clone(),4.4,v[2]?'Прочистить вулкан':'Прочистить потухший вулкан',()=>{
+      state.volcanoes++;
+      toast(v[2]?'Вулкан прочищен — <b>'+state.volcanoes+'/3</b>':'Даже потухший вулкан стоит чистить — <b>'+state.volcanoes+'/3</b>');
+      if(state.volcanoes>=3)toast('Все вулканы горят ровно. На завтрак будет горячо.');
+      refreshJournal();
+    });
+  });
+  // баобабы
+  const br=rng(101);
+  for(let i=0;i<5;i++){
+    const b=makeBaobab();
+    const lat=8+br()*54,lon=95+i*36+br()*20;
+    placeOn(b,lat,lon,br()*6);g.add(b);
+    const pos=b.position.clone();
+    addInter(pos,3,'Выполоть росток баобаба',()=>{
+      g.remove(b);state.baobabs++;
+      toast('Росток выполот — <b>'+state.baobabs+'/5</b>');
+      if(state.baobabs>=5)toast('Планета спасена. Баобабы не разорвут её на части.');
+      refreshJournal();
+    });
+  }
+  // роза + колпак
+  const rose=makeRose(1.15);
+  const rd=placeOn(rose.group,-2,-30);g.add(rose.group);
+  const lbl=label('Роза');lbl.position.copy(rose.group.position).addScaledVector(rd,3.4);g.add(lbl);
+  world.actors.push(t=>{rose.bud.rotation.z=Math.sin(t*.8)*.07;rose.bud.rotation.x=Math.cos(t*.6)*.05;});
+  addInter(rose.group.position.clone(),4,'Поговорить с Розой',()=>talkRose(),{once:false});
+
+  const dome=makeDome();
+  placeOn(dome,-2,-52);g.add(dome);
+  const domeIt=addInter(dome.position.clone(),3.6,'Взять колпак и укрыть Розу',()=>{
+    const d2=placeOn(dome,-2,-30);
+    dome.position.addScaledVector(d2,-.2);
+    state.domePlaced=true;toast('Роза укрыта от сквозняка.');refreshJournal();
+  },{cond:()=>state.roseTalked&&!state.domePlaced});
+
+  // ширма
+  const screen=new THREE.Group();
+  for(let i=0;i<3;i++){
+    const p=mesh(new THREE.BoxGeometry(.9,1.5,.07),mat(0xb08a5e));
+    p.position.set((i-1)*.85,.78,Math.abs(i-1)*.35);screen.add(p);
+  }
+  placeOn(screen,-2,-24,-.5);g.add(screen);
+
+  // скамейка закатов
+  const bench=makeBench();
+  const bd2=placeOn(bench,-26,-70,2.4);g.add(bench);
+  addInter(bench.position.clone(),4,'Посмотреть закат',()=>watchSunset(),{once:false});
+
+  // камни
+  const rr=rng(9);
+  for(let i=0;i<9;i++){const r=makeRock(.4+rr()*.7,i*13+3);placeOn(r,rr()*140-70,rr()*360,rr()*6,-.15);g.add(r);}
+
+  // барашек
+  if(state.hasSheep&&!state.sheepFreed){
+    const box=makeBox();placeOn(box,-2,-70,.4,.3);g.add(box);
+    addInter(box.position.clone(),3,'Выпустить барашка',()=>{
+      g.remove(box);state.sheepFreed=true;
+      const sh=makeSheep();placeOn(sh,-2,-70);g.add(sh);
+      let a=-70;
+      world.actors.push(t=>{a+=.06;const d=placeOn(sh,-2+Math.sin(t*.3)*8,a);sh.rotateY(Math.PI/2);});
+      toast('Барашек пасётся. Он съест ростки баобабов — если найдёт их первым.');
+    });
+  } else if(state.sheepFreed){
+    const sh=makeSheep();let a=-70;g.add(sh);
+    world.actors.push(t=>{a+=.06;placeOn(sh,-2+Math.sin(t*.3)*8,a);sh.rotateY(Math.PI/2);});
+  }
+}
+
+// ---------- Король ----------
+function buildKing(P,g){
+  const throne=makeThrone();placeOn(throne,4,0,Math.PI);g.add(throne);
+  const k=person({coat:0x7c3f63,h:1.6,bot:.95,top:.34,skin:0xecc9a2,beard:0xf0ece4,hair:0xf0ece4});
+  // мантия с горностаем
+  for(let i=0;i<14;i++){
+    const s=mesh(new THREE.SphereGeometry(.06,6,5),mat(0x2a2420),false);
+    const a=Math.random()*Math.PI*2;
+    s.position.set(Math.cos(a)*.72,.2+Math.random()*.7,Math.sin(a)*.72);k.group.add(s);
+  }
+  const crown=mesh(new THREE.CylinderGeometry(.34,.3,.3,8),mat(0xe0b84a));
+  crown.position.y=2.06;k.group.add(crown);
+  for(let i=0;i<8;i++){
+    const p=mesh(new THREE.ConeGeometry(.07,.2,4),mat(0xe8c65c));
+    const a=i/8*Math.PI*2;p.position.set(Math.cos(a)*.31,2.28,Math.sin(a)*.31);k.group.add(p);
+  }
+  const d=placeOn(k.group,4,0,Math.PI);
+  k.group.position.addScaledVector(d,1.05);
+  g.add(k.group);
+  const l=label('Король');l.position.copy(k.group.position).addScaledVector(d,3);g.add(l);
+  world.actors.push(t=>{k.head.rotation.y=Math.sin(t*.5)*.25;});
+  addInter(k.group.position.clone(),5,'Поговорить с Королём',()=>talkKing(),{once:false});
+
+  // старая крыса
+  const rat=new THREE.Group();
+  const rb=mesh(new THREE.SphereGeometry(.22,9,7),mat(0x7d7268));rb.scale.set(1,.8,1.4);rb.position.y=.22;rat.add(rb);
+  const rh=mesh(new THREE.ConeGeometry(.14,.3,7),mat(0x7d7268));rh.rotation.x=Math.PI/2;rh.position.set(0,.24,.34);rat.add(rh);
+  const rt=mesh(new THREE.CylinderGeometry(.03,.01,.7,4),mat(0xa08c80),false);rt.rotation.x=1.2;rt.position.set(0,.2,-.42);rat.add(rt);
+  placeOn(rat,-14,26);g.add(rat);
+  addInter(rat.position.clone(),3,'Посмотреть на старую крысу',()=>{
+    say([['Принц','Единственная подданная, кроме меня. Король каждый вечер приговаривает её к смерти и каждое утро милует.'],
+         ['Принц','Он говорит, что другой крысы у него всё равно нет.']]);
+  },{once:false});
+
+  const rr=rng(31);
+  for(let i=0;i<7;i++){const r=makeRock(.4+rr()*.6,i*7+5);placeOn(r,rr()*140-70,rr()*360,rr()*6,-.1);g.add(r);}
+}
+
+// ---------- Честолюбец ----------
+function buildVain(P,g){
+  const stage=new THREE.Group();
+  const s1=mesh(new THREE.CylinderGeometry(1.7,1.9,.3,14),mat(0xa8785e),true,true);s1.position.y=.15;stage.add(s1);
+  const s2=mesh(new THREE.CylinderGeometry(1.3,1.45,.3,14),mat(0xb8886c),true,true);s2.position.y=.45;stage.add(s2);
+  placeOn(stage,2,0);g.add(stage);
+  const v=person({coat:0xb3543f,h:1.45,bot:.62,top:.32,skin:0xf0cfa6,hair:0x4a3a2c});
+  const hat=new THREE.Group();
+  const brim=mesh(new THREE.CylinderGeometry(.65,.65,.06,16),mat(0xd8c48a));hat.add(brim);
+  const crown=mesh(new THREE.CylinderGeometry(.3,.33,.42,12),mat(0xd8c48a));crown.position.y=.24;hat.add(crown);
+  const band=mesh(new THREE.CylinderGeometry(.335,.335,.1,12),mat(0x8a3a3a));band.position.y=.1;hat.add(band);
+  hat.position.y=2.06;v.group.add(hat);
+  const d=placeOn(v.group,2,0,Math.PI);
+  v.group.position.addScaledVector(d,.75);g.add(v.group);
+  const l=label('Честолюбец');l.position.copy(v.group.position).addScaledVector(d,3);g.add(l);
+  let hatT=0;
+  world.actors.push((t,dt)=>{
+    if(hatT>0){hatT-=dt;const k=Math.sin(clamp((1.1-hatT)/1.1,0,1)*Math.PI);
+      hat.position.y=2.06+k*.75;hat.rotation.z=k*.5;}
+    else{hat.position.y=2.06;hat.rotation.z=0;}
+    v.arms.forEach((a,i)=>{a.rotation.z=(i?-1:1)*(.3+(hatT>0?.4:0));});
+  });
+  addInter(v.group.position.clone(),6,
+    ()=>state.vainIntro?'Похлопать в ладоши':'Поговорить с Честолюбцем',
+    ()=>{
+    if(!state.vainIntro){state.vainIntro=true;talkVain();return;}
+    hatT=1.1;state.vainClaps++;
+    if(state.vainClaps<4)say([['Честолюбец','Приветствую тебя! (приподнимает шляпу)']]);
+    else if(state.vainClaps===4){
+      state.vainDone=true;refreshJournal();
+      say([['Честолюбец','Ты — самый преданный мой поклонник.'],
+           ['Принц','Я единственный твой поклонник. Здесь больше никого нет.'],
+           ['Честолюбец','Вот именно! Значит, лучший из всех.'],
+           ['Принц','<em>Странные люди эти взрослые.</em>']]);
+    } else say([['Честолюбец','Ещё! Ещё! (приподнимает шляпу)']]);
+  },{once:false});
+
+  const rr=rng(41);
+  for(let i=0;i<6;i++){const r=makeRock(.35+rr()*.5,i*11+9);placeOn(r,rr()*130-65,rr()*360,rr()*6,-.1);g.add(r);}
+}
+
+// ---------- Деловой человек ----------
+function buildBiz(P,g){
+  const desk=makeDesk();placeOn(desk,2,0,0);g.add(desk);
+  const b=person({coat:0x3f5568,h:1.35,bot:.6,top:.36,skin:0xe8c9a4,hair:0x5a5a5a});
+  const gl=mesh(new THREE.TorusGeometry(.11,.022,5,10),mat(0x2a2a2a),false);
+  gl.position.set(-.12,1.62,.27);b.group.add(gl);
+  const gl2=gl.clone();gl2.position.x=.12;b.group.add(gl2);
+  const d=placeOn(b.group,2,-11,-.2);g.add(b.group);
+  const l=label('Деловой человек');l.position.copy(b.group.position).addScaledVector(d,3);g.add(l);
+  world.actors.push(t=>{b.head.rotation.x=.25+Math.sin(t*3)*.1;b.arms[0].rotation.x=Math.sin(t*4)*.4;});
+  addInter(b.group.position.clone(),5,'Поговорить с Деловым человеком',()=>talkBiz(),{once:false});
+
+  // «его» звёзды в банке
+  const jar=new THREE.Group();
+  const glass=mesh(new THREE.CylinderGeometry(.7,.65,1.5,14),
+    new THREE.MeshStandardMaterial({color:0xbfe0f0,transparent:true,opacity:.22,roughness:.1}),false);
+  glass.position.y=.75;jar.add(glass);
+  const sparks=[];
+  for(let i=0;i<26;i++){
+    const s=mesh(new THREE.TetrahedronGeometry(.07),new THREE.MeshBasicMaterial({color:0xffe8a8}),false);
+    s.userData={a:Math.random()*6.28,y:.2+Math.random()*1.1,r:Math.random()*.5,sp:.4+Math.random()};
+    jar.add(s);sparks.push(s);
+  }
+  placeOn(jar,2,14);g.add(jar);
+  world.actors.push(t=>{sparks.forEach(s=>{const u=s.userData;
+    s.position.set(Math.cos(u.a+t*u.sp)*u.r,u.y+Math.sin(t*u.sp+u.a)*.12,Math.sin(u.a+t*u.sp)*u.r);
+    s.rotation.y=t*u.sp;});});
+  addInter(jar.position.clone(),3.5,'Заглянуть в банку со звёздами',()=>{
+    say([['Принц','Он держит их в банке и запирает в ящик. Говорит, это называется «владеть».'],
+         ['Принц','<em>А от него звёздам нет никакой пользы.</em>']]);
+  },{once:false});
+
+  const rr=rng(51);
+  for(let i=0;i<6;i++){const r=makeRock(.35+rr()*.6,i*17+2);placeOn(r,rr()*130-65,rr()*360,rr()*6,-.1);g.add(r);}
+}
+
+// ---------- Фонарщик ----------
+function buildLamp(P,g){
+  const lamp=makeLamp();
+  const d=placeOn(lamp.group,2,0);g.add(lamp.group);
+  world.lamp=lamp;
+  const p=person({coat:0x4a6a7a,h:1.35,bot:.6,top:.34,skin:0xe0bd97});
+  const cap=mesh(new THREE.CylinderGeometry(.3,.32,.22,10),mat(0x3a4a56));cap.position.y=1.94;p.group.add(cap);
+  const peak=mesh(new THREE.BoxGeometry(.5,.05,.3),mat(0x33424d));peak.position.set(0,1.85,.28);p.group.add(peak);
+  const d2=placeOn(p.group,2,-7,-.4);g.add(p.group);
+  const l=label('Фонарщик');l.position.copy(p.group.position).addScaledVector(d2,3);g.add(l);
+  world.actors.push((t,dt)=>{
+    p.arms[0].rotation.x=Math.sin(t*2.2)*.7-.4;
+    p.group.position.copy(d2).multiplyScalar(P.radius+P.heightAt(d2));
+  });
+  addInter(p.group.position.clone(),5,'Поговорить с Фонарщиком',()=>talkLamp(),{once:false});
+  addInter(lamp.group.position.clone(),4.5,'Помочь с фонарём',()=>{
+    state.lampDone=true;refreshJournal();
+    say([['Принц','Я подержу фонарь, пока ты отдохнёшь.'],
+         ['Фонарщик','Спасибо. Впервые за много лет я успел вздохнуть.'],
+         ['Принц','<em>Вот человек, которого не за что презирать. Он думает не о себе.</em>']]);
+  },{once:false});
+  const rr=rng(61);
+  for(let i=0;i<5;i++){const r=makeRock(.3+rr()*.5,i*23+4);placeOn(r,rr()*120-60,rr()*360,rr()*6,-.1);g.add(r);}
+}
+
+// ---------- Земля ----------
+function buildEarth(P,g){
+  // колодец
+  const well=makeWell();const wd=placeOn(well.group,-4,22);g.add(well.group);
+  const wl=label('Колодец');wl.position.copy(well.group.position).addScaledVector(wd,4);g.add(wl);
+  addInter(well.group.position.clone(),5,'Напиться воды',()=>{
+    state.wellDrunk=true;refreshJournal();
+    say([['Принц','Вода… Она была не просто питьём. Она родилась из дороги под звёздами, из скрипа ворота, из усилия рук.'],
+         ['Принц','<em>Пустыня красива тем, что где-то в ней прячется родник.</em>']]);
+  },{once:false});
+
+  // самолёт и лётчик
+  const plane=makePlane();placeOn(plane.group,10,-52,1.1);g.add(plane.group);
+  const pilot=person({coat:0x8a6a4a,h:1.4,bot:.6,top:.36,skin:0xe8c49a});
+  const helm=mesh(new THREE.SphereGeometry(.32,12,9),mat(0x6b4f38));helm.position.y=1.68;helm.scale.y=.85;pilot.group.add(helm);
+  const gog=mesh(new THREE.BoxGeometry(.5,.14,.1),mat(0x2f3a44),false);gog.position.set(0,1.76,.27);pilot.group.add(gog);
+  const pd=placeOn(pilot.group,10,-46,-1.2);g.add(pilot.group);
+  const pl=label('Лётчик');pl.position.copy(pilot.group.position).addScaledVector(pd,3);g.add(pl);
+  addInter(pilot.group.position.clone(),5,'Поговорить с Лётчиком',()=>talkPilot(),{once:false});
+  world.actors.push(t=>{plane.prop.rotation.z=Math.sin(t*.4)*.15;});
+
+  // розовый сад
+  const garden=new THREE.Group();
+  const gr=rng(77);
+  for(let i=0;i<26;i++){
+    const r=makeRose(.7+gr()*.25);
+    const a=gr()*Math.PI*2,rad=gr()*4.2;
+    r.group.position.set(Math.cos(a)*rad,0,Math.sin(a)*rad);
+    garden.add(r.group);
+  }
+  const gd=placeOn(garden,-16,-6);g.add(garden);
+  const gl2=label('Розовый сад');gl2.position.copy(garden.position).addScaledVector(gd,4);g.add(gl2);
+  addInter(garden.position.clone(),6,'Разглядеть розы',()=>{
+    state.gardenSeen=true;refreshJournal();
+    say([['Принц','Вы совсем не похожи на мою розу. Вы ещё ничто.'],
+         ['Принц','Никто вас не приручал, и вы никого не приручили.'],
+         ['Принц','Моя роза одна дороже вас всех: ведь это её я поливал, укрывал колпаком и слушал, даже когда она молчала.']]);
+  },{once:false});
+
+  // пшеница
+  const wheat=makeWheat(140,9,rng(88));
+  const whd=placeOn(wheat,4,58);g.add(wheat);
+  addInter(wheat.position.clone(),6,'Тронуть колосья',()=>{
+    say([['Принц',state.foxTamed
+      ?'Золото колосьев теперь напоминает мне о Лисе. И шум ветра в поле стал приятен.'
+      :'Просто золотые колосья. Пока они мне ни о чём не говорят.']]);
+  },{once:false});
+
+  // змея на камне
+  const rock=makeRock(1.8,777);placeOn(rock,-22,72,0,-.4);g.add(rock);
+  const snake=makeSnake();const sd=placeOn(snake.group,-22,72,0,1.3);g.add(snake.group);
+  const sl=label('Змея');sl.position.copy(snake.group.position).addScaledVector(sd,3.4);g.add(sl);
+  addInter(snake.group.position.clone(),5,'Заговорить со Змеёй',()=>talkSnake(),{once:false});
+
+  // лис
+  const fox=makeFox();
+  world.fox={m:fox,lat:-30,lon:-64,flee:0};
+  const fd=placeOn(fox.group,world.fox.lat,world.fox.lon);g.add(fox.group);
+  const fl=label('Лис');fl.position.copy(fox.group.position).addScaledVector(fd,3.2);g.add(fl);
+  world.fox.lbl=fl;
+  world.actors.push((t,dt)=>updateFox(t,dt));
+  addInter(fox.group.position.clone(),4.2,'Поговорить с Лисом',()=>talkFox(),{once:false,dyn:()=>fox.group.position});
+
+  // дюны-камни и цветок с тремя лепестками
+  const rr=rng(99);
+  for(let i=0;i<16;i++){const r=makeRock(.5+rr()*1.1,i*29+6);placeOn(r,rr()*150-75,rr()*360,rr()*6,-.2);g.add(r);}
+  const flower=new THREE.Group();
+  const fs=mesh(new THREE.CylinderGeometry(.03,.04,.7,5),mat(0x7a8a4a));fs.position.y=.35;flower.add(fs);
+  for(let i=0;i<3;i++){
+    const p=mesh(new THREE.SphereGeometry(.13,7,5),mat(0xe0d0a0));
+    p.scale.set(1,.3,.6);const a=i/3*Math.PI*2;
+    p.position.set(Math.cos(a)*.12,.72,Math.sin(a)*.12);flower.add(p);
+  }
+  placeOn(flower,2,6);g.add(flower);
+  addInter(flower.position.clone(),3,'Спросить у цветка о людях',()=>{
+    say([['Цветок','Люди? Их всего-то шесть или семь, кажется.'],
+         ['Цветок','Я видел их много лет назад. Где их искать — неизвестно: их носит ветром.'],
+         ['Цветок','У них нет корней, это очень неудобно.']]);
+  },{once:false});
+}
+</script>
+<script>
+// ============================================================
+//  ИГРОК И УПРАВЛЕНИЕ
+// ============================================================
+const princeModel=makePrince();
+scene.add(princeModel.group);
+const player={
+  dir:V(0,1,0), fwd:V(0,0,1), face:V(0,0,1),
+  alt:0, vy:0, speed:6.4, walking:0, sneak:false, pitch:.12
+};
+
+const keys={};
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  keys[k]=true;keys[e.code]=true;
+  if(e.code==='Space')e.preventDefault();
+  if(ui.dialogue){ if(e.code==='Space'||k==='e'||k==='enter')advanceDialogue(); return; }
+  if(k==='e'||k==='у')tryInteract();
+  if(k==='m'||k==='ь')toggleMap();
+  if(k==='j'||k==='о')toggleJournal();
+  if(e.key==='Escape'&&ui.map)closeMap();
+});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.code]=false;});
+const K=(...a)=>a.some(k=>keys[k]);
+
+// мышь
+let pointerLocked=false;
+renderer.domElement.addEventListener('click',()=>{
+  if(!ui.dialogue&&!ui.map&&started&&!pointerLocked)renderer.domElement.requestPointerLock();
+});
+document.addEventListener('pointerlockchange',()=>{pointerLocked=document.pointerLockElement===renderer.domElement;});
+let dragging=false;
+renderer.domElement.addEventListener('mousedown',()=>{dragging=true;});
+addEventListener('mouseup',()=>{dragging=false;});
+document.addEventListener('mousemove',e=>{
+  if(ui.dialogue||ui.map||!started)return;
+  if(!pointerLocked&&!dragging)return;      // без захвата — обзор перетаскиванием
+  player.fwd.applyAxisAngle(player.dir,-e.movementX*.0026);
+  player.pitch=clamp(player.pitch-e.movementY*.0022,-.55,.95);
+});
+// касание — простое управление для телефона
+let touchMove=null,touchLook=null;
+addEventListener('touchstart',e=>{
+  for(const t of e.changedTouches){
+    if(t.clientX<innerWidth/2&&!touchMove)touchMove={id:t.identifier,x0:t.clientX,y0:t.clientY,dx:0,dy:0};
+    else if(!touchLook)touchLook={id:t.identifier,x:t.clientX,y:t.clientY};
+  }
+},{passive:true});
+addEventListener('touchmove',e=>{
+  for(const t of e.changedTouches){
+    if(touchMove&&t.identifier===touchMove.id){touchMove.dx=clamp((t.clientX-touchMove.x0)/60,-1,1);touchMove.dy=clamp((t.clientY-touchMove.y0)/60,-1,1);}
+    else if(touchLook&&t.identifier===touchLook.id){
+      player.fwd.applyAxisAngle(player.dir,-(t.clientX-touchLook.x)*.006);
+      player.pitch=clamp(player.pitch-(t.clientY-touchLook.y)*.004,-.55,.95);
+      touchLook.x=t.clientX;touchLook.y=t.clientY;
+    }
+  }
+},{passive:true});
+addEventListener('touchend',e=>{
+  for(const t of e.changedTouches){
+    if(touchMove&&t.identifier===touchMove.id)touchMove=null;
+    if(touchLook&&t.identifier===touchLook.id)touchLook=null;
+  }
+},{passive:true});
+
+function playerPos(extra=0){
+  const P=world.planet;
+  return player.dir.clone().multiplyScalar(P.radius+P.heightAt(player.dir)+player.alt+extra);
+}
+
+function movePlayer(dt){
+  const P=world.planet;
+  // ортогонализация
+  player.fwd.addScaledVector(player.dir,-player.fwd.dot(player.dir));
+  if(player.fwd.lengthSq()<1e-6)player.fwd.set(1,0,0).cross(player.dir);
+  player.fwd.normalize();
+  const right=V().crossVectors(player.fwd,player.dir).normalize();
+
+  let f=0,s=0;
+  if(K('w','ц','ArrowUp'))f+=1;
+  if(K('s','ы','ArrowDown'))f-=1;
+  if(K('a','ф','ArrowLeft'))s-=1;
+  if(K('d','в','ArrowRight'))s+=1;
+  if(touchMove){f-=touchMove.dy;s+=touchMove.dx;}
+
+  player.sneak=K('Shift','ShiftLeft','ShiftRight');
+  const move=V().addScaledVector(player.fwd,f).addScaledVector(right,s);
+  const mag=clamp(move.length(),0,1);
+  if(mag>.01){
+    move.normalize();
+    const sp=player.speed*(player.sneak?.35:1)*mag;
+    const ang=sp*dt/P.radius;
+    const axis=V().crossVectors(player.dir,move).normalize();
+    player.dir.applyAxisAngle(axis,ang).normalize();
+    player.fwd.applyAxisAngle(axis,ang);
+    player.face.lerp(move,clamp(dt*9,0,1)).normalize();
+    player.walking+=dt*(player.sneak?4:9)*mag;
+    world.moveSpeed=sp;
+  } else { world.moveSpeed=0; player.walking+=dt*.7; }
+
+  // прыжок
+  const grounded=player.alt<=.001;
+  if(grounded&&K(' ','Space')&&!ui.dialogue){player.vy=8.2;}
+  if(!grounded||player.vy>0){
+    player.vy-=17*dt;player.alt+=player.vy*dt;
+    if(player.alt<=0){player.alt=0;player.vy=0;}
+  }
+
+  // трансформация модели
+  const pos=playerPos();
+  const m=princeModel.group;
+  m.position.copy(pos);
+  const zA=player.face.clone().normalize();
+  const xA=V().crossVectors(player.dir,zA).normalize();
+  const yA=player.dir;
+  const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xA,yA,zA));
+  m.quaternion.slerp(q,clamp(dt*12,0,1));
+
+  // анимация ходьбы
+  const sw=Math.sin(player.walking)*(mag>.01?.75:.05);
+  princeModel.legs[0].rotation.x=sw;princeModel.legs[1].rotation.x=-sw;
+  princeModel.arms[0].rotation.x=-sw*.6;princeModel.arms[1].rotation.x=sw*.6;
+  const bob=mag>.01?Math.abs(Math.sin(player.walking))*.06:0;
+  m.position.addScaledVector(player.dir,bob+ (grounded?0:0));
+  princeModel.tails.forEach((t,i)=>{
+    t.rotation.x=Math.sin(player.walking*.8-i*.5)*.16-.12-(world.moveSpeed||0)*.03;
+    t.rotation.z=Math.sin(player.walking*.6-i*.4)*.14;
+  });
+}
+
+function updateCamera(dt){
+  const P=world.planet;
+  const pos=playerPos();
+  const up=player.dir;
+  const back=player.fwd.clone().multiplyScalar(-1);
+  const dist=8.2, height=3.1+player.pitch*5.5;
+  const desired=pos.clone().addScaledVector(up,height).addScaledVector(back,dist*(1-player.pitch*.35));
+  camera.position.lerp(desired,1-Math.exp(-9*dt));
+  const minR=P.radius+P.heightAt(camera.position.clone().normalize())+1.4;
+  if(camera.position.length()<minR)camera.position.setLength(minR);
+  camera.up.copy(up);
+  camera.lookAt(pos.clone().addScaledVector(up,1.55));
+}
+
+function updateSun(dt){
+  world.sunAngle+=(world.spin||0)*dt;
+  const axis=V(.25,1,.12).normalize();
+  const base=V(1,0,.35).normalize();
+  const d=base.clone().applyAxisAngle(axis,world.sunAngle);
+  sun.position.copy(d).multiplyScalar(160);
+  sun.target.position.set(0,0,0);sun.target.updateMatrixWorld();
+  sunDisc.position.copy(d).multiplyScalar(900);
+  sunGlow.position.copy(sunDisc.position);
+  world.sunDir=d;
+  const daylight=clamp(player.dir.dot(d)*1.6+.5,0,1);
+  ambient.intensity=lerp(.1,.26,daylight);
+  hemi.intensity=lerp(.18,world.planet.hemi[2],daylight);
+  sun.intensity=lerp(.15,1.35,clamp(daylight*1.4,0,1));
+  if(world.lamp){
+    const night=1-daylight;
+    world.lamp.light.intensity=night*3.2;
+    world.lamp.glass.material.color.setHex(night>.35?0xffd98a:0x4a4a44);
+  }
+}
+
+// ---------- лис ----------
+function updateFox(t,dt){
+  const f=world.fox; if(!f)return;
+  const fox=f.m, P=world.planet;
+  const fpos=fox.group.position;
+  const dist=fpos.distanceTo(playerPos());
+  if(!state.foxTamed){
+    if(dist<11){
+      const slow=(world.moveSpeed||0)<2.6;
+      if(slow&&dist<9){
+        state.foxTrust=clamp(state.foxTrust+dt*(dist<6?17:11),0,100);
+        f.flee=Math.max(0,f.flee-dt);
+      } else if(!slow&&dist<8){
+        state.foxTrust=clamp(state.foxTrust-dt*26,0,100);
+        f.flee=.9;
+      }
+      trustEl.classList.add('on');trustFill.style.width=state.foxTrust+'%';
+      if(state.foxTrust>=100){
+        state.foxTamed=true;trustEl.classList.remove('on');refreshJournal();
+        toast('Лис привык к тебе. Теперь вы не такие, как все.');
+        talkFox();
+      }
+    } else trustEl.classList.remove('on');
+    // отбегает
+    if(f.flee>0){
+      const away=fpos.clone().sub(playerPos()).normalize();
+      const axis=V().crossVectors(fox.group.position.clone().normalize(),away).normalize();
+      const nd=fox.group.position.clone().normalize().applyAxisAngle(axis,3.2*dt/P.radius);
+      fox.group.position.copy(nd).multiplyScalar(P.radius+P.heightAt(nd));
+      alignFoxUp(fox,nd,away);
+    }
+  } else {
+    // ходит рядом с принцем
+    const target=playerPos();
+    if(dist>4.5){
+      const to=target.clone().sub(fpos).normalize();
+      const nd0=fpos.clone().normalize();
+      const axis=V().crossVectors(nd0,to).normalize();
+      const nd=nd0.applyAxisAngle(axis,3.4*dt/P.radius);
+      fox.group.position.copy(nd).multiplyScalar(P.radius+P.heightAt(nd));
+      alignFoxUp(fox,nd,to);
+    }
+    fox.tail.rotation.y=Math.sin(t*7)*.5;
+  }
+  fox.legs.forEach((l,i)=>{l.rotation.x=Math.sin(t*7+i*1.6)*(f.flee>0||state.foxTamed?.5:.08);});
+  fox.head.rotation.y=Math.sin(t*.9)*.3;
+  if(f.lbl){const up=fox.group.position.clone().normalize();
+    f.lbl.position.copy(fox.group.position).addScaledVector(up,3.2);}
+}
+function alignFoxUp(fox,up,forward){
+  const z=forward.clone().addScaledVector(up,-forward.dot(up));
+  if(z.lengthSq()<1e-6)return; z.normalize();
+  const x=V().crossVectors(up,z).normalize();
+  fox.group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,up,z));
+}
+</script>
+<script>
+// ============================================================
+//  ИНТЕРФЕЙС
+// ============================================================
+const ui={dialogue:false,map:false,busy:false};
+const promptEl=document.getElementById('prompt');
+const dlgEl=document.getElementById('dialogue');
+const dlgWho=document.getElementById('dlgWho');
+const dlgText=document.getElementById('dlgText');
+const dlgChoices=document.getElementById('dlgChoices');
+const dlgNext=document.getElementById('dlgNext');
+const trustEl=document.getElementById('trust');
+const trustFill=document.getElementById('trustFill');
+const toastsEl=document.getElementById('toasts');
+
+function toast(html){
+  const d=document.createElement('div');d.className='toast panel';d.innerHTML=html;
+  toastsEl.appendChild(d);setTimeout(()=>d.remove(),4200);
+}
+
+// ---------- диалоги ----------
+let dq=[],dIdx=0,dEnd=null;
+function say(lines,onEnd){
+  dq=lines.slice();dIdx=0;dEnd=onEnd||null;
+  ui.dialogue=true;dlgEl.classList.add('on');
+  if(pointerLocked)document.exitPointerLock();
+  showLine();
+}
+function showLine(){
+  dlgChoices.innerHTML='';
+  const l=dq[dIdx];
+  if(!l){endDialogue();return;}
+  if(Array.isArray(l)){
+    dlgWho.textContent=l[0];dlgText.innerHTML=l[1];dlgNext.style.display='';
+  } else if(l.choices){
+    dlgWho.textContent=l.who||'Принц';dlgText.innerHTML=l.text||'';dlgNext.style.display='none';
+    l.choices.forEach(c=>{
+      const b=document.createElement('button');b.textContent=c.label;
+      b.onclick=()=>{dq.splice(dIdx+1,0,...c.lines);if(c.act)c.act();dIdx++;showLine();};
+      dlgChoices.appendChild(b);
+    });
+  }
+}
+function advanceDialogue(){
+  const l=dq[dIdx];
+  if(l&&!Array.isArray(l)&&l.choices)return;
+  dIdx++;
+  if(dIdx>=dq.length)endDialogue();else showLine();
+}
+function endDialogue(){
+  ui.dialogue=false;dlgEl.classList.remove('on');
+  const f=dEnd;dEnd=null;dq=[];
+  if(f)f();
+}
+dlgEl.addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')advanceDialogue();});
+
+// ---------- журнал ----------
+const jlist=document.getElementById('jlist');
+function refreshJournal(){
+  const q=[
+    ['Прочистить вулканы ('+Math.min(state.volcanoes,3)+'/3)',state.volcanoes>=3],
+    ['Выполоть ростки баобабов ('+Math.min(state.baobabs,5)+'/5)',state.baobabs>=5],
+    ['Укрыть Розу колпаком',state.domePlaced],
+    ['Посмотреть закат ('+state.sunsets+')',state.sunsets>0],
+    ['Побывать на всех планетах ('+state.visited.size+'/6)',state.visited.size>=6],
+    ['Приручить Лиса',state.foxTamed],
+    ['Получить барашка',state.hasSheep],
+  ];
+  if(state.foxTamed)q.push(['Вернуться к Розе',state.ended]);
+  jlist.innerHTML=q.map(x=>'<li class="'+(x[1]?'done':'')+'">'+x[0]+'</li>').join('');
+}
+function toggleJournal(){
+  const j=document.getElementById('journal');
+  j.style.display=j.style.display==='block'?'none':'block';refreshJournal();
+}
+
+// ---------- карта ----------
+const mapEl=document.getElementById('map'),mapGrid=document.getElementById('mapGrid');
+document.getElementById('mapClose').onclick=closeMap;
+function openMap(){
+  ui.map=true;mapEl.classList.add('on');
+  if(pointerLocked)document.exitPointerLock();
+  mapGrid.innerHTML='';
+  Object.values(PLANETS).forEach(p=>{
+    const b=document.createElement('button');b.className='pcard';
+    const here=p.key===world.planet.key;
+    b.innerHTML='<div class="no">'+p.num+'</div><div class="t">'+p.name+'</div><div class="d">'+p.desc+'</div>'+
+      (here?'<div class="here">ты здесь</div>':(state.visited.has(p.key)?'<div class="dot"></div>':''));
+    if(!here)b.onclick=()=>{closeMap();travelTo(p.key);};
+    else b.style.opacity=.55;
+    mapGrid.appendChild(b);
+  });
+}
+function closeMap(){ui.map=false;mapEl.classList.remove('on');}
+function toggleMap(){ui.map?closeMap():openMap();}
+
+// ---------- перелёт ----------
+const fadeEl=document.getElementById('fade'),ctEl=document.getElementById('cardTitle');
+function travelTo(key){
+  ui.busy=true;fadeEl.classList.add('on');
+  setTimeout(()=>{
+    disposeGroup(world.group);
+    if(world.lamp){world.lamp=null;}
+    world.fox=null;trustEl.classList.remove('on');
+    buildPlanet(key);
+    const P=world.planet;
+    player.dir=dirLL(P.spawn[0],P.spawn[1]);
+    player.fwd.set(0,1,0).cross(player.dir).normalize();
+    player.face.copy(player.fwd);player.alt=0;player.vy=0;
+    world.sunAngle=key==='lamp'?1.2:.6;
+    updateSun(0);movePlayer(0.0001);
+    camera.position.copy(playerPos()).addScaledVector(player.dir,3).addScaledVector(player.fwd,-8);
+    document.querySelector('#planetTag .num').textContent=P.num;
+    document.querySelector('#planetTag .nm').textContent=P.name;
+    document.getElementById('ctN').textContent=P.num;
+    document.getElementById('ctT').textContent=P.name;
+    ctEl.classList.add('on');
+    setTimeout(()=>{fadeEl.classList.remove('on');ui.busy=false;},260);
+    setTimeout(()=>ctEl.classList.remove('on'),2100);
+    refreshJournal();
+  },600);
+}
+function disposeGroup(g){
+  if(!g)return;
+  g.traverse(o=>{
+    if(o.geometry)o.geometry.dispose();
+    if(o.material){const m=Array.isArray(o.material)?o.material:[o.material];
+      m.forEach(x=>{if(x.map)x.map.dispose();x.dispose();});}
+  });
+  scene.remove(g);
+}
+
+// ---------- взаимодействия ----------
+let nearest=null;
+function updateInteract(){
+  if(ui.dialogue||ui.map||ui.busy){promptEl.classList.remove('on');nearest=null;return;}
+  const pp=playerPos();
+  let best=null,bd=1e9;
+  for(const it of world.inter){
+    if(it.used&&it.once)continue;
+    if(it.cond&&!it.cond())continue;
+    const p=it.dyn?it.dyn():it.pos;
+    const d=p.distanceTo(pp);
+    if(d<it.radius&&d<bd){bd=d;best=it;}
+  }
+  nearest=best;
+  if(best){
+    const lab=(typeof best.label==='function')?best.label():best.label;
+    promptEl.innerHTML='<kbd>E</kbd>'+lab;promptEl.classList.add('on');
+  }
+  else promptEl.classList.remove('on');
+}
+function tryInteract(){
+  if(!nearest||ui.busy||ui.map)return;
+  const it=nearest;
+  if(it.once)it.used=true;
+  it.fn();
+  updateInteract();
+}
+
+// ---------- закат ----------
+let sunsetT=0;
+function watchSunset(){
+  if(sunsetT>0)return;
+  sunsetT=5.2;ui.busy=true;
+  state.sunsets++;refreshJournal();
+  setTimeout(()=>{
+    ui.busy=false;
+    const n=state.sunsets;
+    const msg=n<3?'Закат №'+n+'. Достаточно подвинуть стул на несколько шагов — и смотри сколько хочешь.'
+      :(n<10?'Закат №'+n+'. Когда на душе тяжело, хорошо смотреть, как заходит солнце.'
+      :'Закат №'+n+'. Однажды принц смотрел их сорок три раза подряд.');
+    say([['Принц',msg]]);
+  },5400);
+}
+</script>
+<script>
+// ============================================================
+//  ДИАЛОГИ ПЕРСОНАЖЕЙ
+// ============================================================
+function talkRose(){
+  if(state.foxTamed&&state.roseTalked&&!state.ended){ return endingScene(); }
+  if(!state.roseTalked){
+    say([
+      ['Роза','Ах, это ты… Кажется, я только что проснулась. Прости, я совсем непричёсана.'],
+      ['Принц','Ты очень красивая.'],
+      ['Роза','Правда? И заметь, я родилась вместе с солнцем. Хотя утро — не лучшее моё время.'],
+      {who:'Роза',text:'Здесь ужасный сквозняк. У тебя ведь найдётся колпак?',choices:[
+        {label:'Сейчас принесу колпак.',lines:[
+          ['Роза','Вот и хорошо. Хотя я, конечно, никаких сквозняков не боюсь. Ну… почти.'],
+          ['Роза','И ещё: не забывай про вулканы. От них зависит, будет ли нам тепло по утрам.']]},
+        {label:'Может, тебе полезен свежий воздух?',lines:[
+          ['Роза','Свежий воздух! Я цветок, а не сорняк.'],
+          ['Роза','…Впрочем, к вечеру всё-таки принеси колпак. Мне будет спокойнее.']]}
+      ]},
+    ],()=>{state.roseTalked=true;refreshJournal();toast('Колпак лежит неподалёку.');});
+  } else {
+    const lines=[['Роза','Ну что ж, лети. Я ведь не могу тебя удерживать.']];
+    if(state.domePlaced)lines.push(['Роза','Не нужен мне колпак, я и так справлюсь… Но раз уж поставил — пусть стоит.']);
+    lines.push(['Роза','Я была глупой. Прости меня и постарайся быть счастливым.']);
+    say(lines);
+  }
+}
+
+function talkKing(){
+  if(!state.kingDone){
+    say([
+      ['Король','А, подданный! Как удачно, что ты появился именно сейчас.'],
+      ['Принц','Откуда вы меня знаете? Вы видите меня в первый раз.'],
+      ['Король','Для короля все — подданные. Не стой, ты мешаешь мне видеть тебя целиком. Садись.'],
+      {who:'Принц',text:'Ваше величество, чем вы правите?',choices:[
+        {label:'Прикажите солнцу сесть — я хочу закат.',lines:[
+          ['Король','Я прикажу. Но подожду благоприятных условий: власть должна быть разумной.'],
+          ['Король','Если я велю генералу обернуться морской чайкой и он не обернётся, виноват буду я, а не он.'],
+          ['Король','Сегодня закат наступит около семи часов сорока минут. И ты увидишь, как точно меня слушаются.']]},
+        {label:'А что тут, собственно, ваше?',lines:[
+          ['Король','Всё. Эта планета, вон те звёзды и та стая птиц.'],
+          ['Принц','И звёзды вам повинуются?'],
+          ['Король','Разумеется. Я не терплю непослушания — поэтому и требую только выполнимого.']]}
+      ]},
+      ['Король','Ты уже уходишь? Постой. Назначаю тебя послом.'],
+      ['Принц','<em>Взрослые — странный народ.</em>']
+    ],()=>{state.kingDone=true;refreshJournal();toast('Ты назначен послом. Это ничего не значит, но звучит важно.');});
+  } else say([['Король','Посол! Приказываю тебе быть довольным собой. Это выполнимо, значит — приказ разумный.']]);
+}
+
+function talkVain(){
+  if(!state.vainDone){
+    say([
+      ['Честолюбец','О! Поклонник! Наконец-то кто-то пришёл мною восхищаться.'],
+      ['Принц','Забавная у вас шляпа.'],
+      ['Честолюбец','Это чтобы раскланиваться, когда мне кричат «ура». Похлопай в ладоши — увидишь.'],
+      ['Принц','<em>Похлопать? Ну хорошо.</em> (жми <b>E</b>, стоя рядом)']
+    ]);
+  } else say([['Честолюбец','Ты по-прежнему мною восхищаешься? Скажи, что да. Он слышит только похвалу.']]);
+}
+
+function talkBiz(){
+  if(!state.bizDone){
+    say([
+      ['Деловой человек','Три плюс два — пять. Не мешай, я занят.'],
+      ['Принц','Пятьсот миллионов чего?'],
+      ['Деловой человек','Пятьсот один миллион шестьсот двадцать две тысячи семьсот тридцать одна. Звёзды.'],
+      {who:'Принц',text:'И что ты с ними делаешь?',choices:[
+        {label:'Зачем тебе владеть звёздами?',lines:[
+          ['Деловой человек','Чтобы быть богатым. А когда находят новые звёзды — покупать и их.'],
+          ['Принц','Как шарф: его можно обмотать вокруг шеи. А звезду на шею не наденешь.']]},
+        {label:'Какая от тебя польза звёздам?',lines:[
+          ['Деловой человек','Польза? Я ими управляю: считаю и пересчитываю. Это трудная работа.'],
+          ['Принц','У меня есть цветок, и я поливаю его каждый день. Есть три вулкана, и я их чищу.'],
+          ['Принц','От меня есть польза и вулканам, и цветку. А звёздам от тебя — никакой.']]}
+      ]},
+      ['Принц','<em>Взрослые определённо очень странные.</em>']
+    ],()=>{state.bizDone=true;refreshJournal();});
+  } else say([['Деловой человек','Не сбивай! Пятьсот один миллион шестьсот двадцать две тысячи семьсот… тридцать одна. Ух.']]);
+}
+
+function talkLamp(){
+  if(!state.lampDone){
+    say([
+      ['Фонарщик','Добрый день. Гасить.'],
+      ['Принц','Почему ты сейчас погасил фонарь?'],
+      ['Фонарщик','Уговор. Добрый вечер. Зажигать.'],
+      ['Фонарщик','Раньше планета вращалась медленно, и я успевал отдыхать. Теперь оборот — минута, и я не сплю уже много лет.'],
+      {who:'Принц',text:'Хочешь, я подскажу, как отдохнуть?',choices:[
+        {label:'Просто иди за солнцем — и день не кончится.',lines:[
+          ['Фонарщик','Заманчиво. Но больше всего на свете я люблю спать.'],
+          ['Принц','Тогда тебе не повезло.'],
+          ['Фонарщик','Не повезло. Добрый день. Гасить.']]},
+        {label:'Оставь фонарь погашенным на минуту.',lines:[
+          ['Фонарщик','Никогда. Уговор есть уговор.'],
+          ['Принц','<em>Он единственный, кого мне не хочется назвать смешным. Потому что он думает не о себе.</em>']]}
+      ]}
+    ],()=>{refreshJournal();});
+  } else say([['Фонарщик','Добрый вечер. Зажигать. …Добрый день. Гасить. Ах, если бы сутки были подлиннее.']]);
+}
+
+function talkPilot(){
+  if(!state.hasSheep){
+    say([
+      ['Лётчик','Откуда ты взялся? У меня сломался мотор, воды на неделю, а вокруг — тысяча миль песка.'],
+      ['Принц','Нарисуй мне барашка.'],
+      ['Лётчик','Но я не умею рисовать! Меня отучили в шесть лет, когда я нарисовал удава, проглотившего слона.'],
+      ['Принц','Ничего. Нарисуй барашка.'],
+      {who:'Лётчик',text:'Ладно. Вот… (черкает пару линий)',choices:[
+        {label:'Этот слишком хилый.',lines:[['Лётчик','А этот?'],['Принц','У него рога. Это старый баран.']]},
+        {label:'Он выглядит совсем больным.',lines:[['Лётчик','Ну хорошо, ещё раз.'],['Принц','Этот слишком старый.']]}
+      ]},
+      ['Лётчик','Всё. Вот тебе ящик. Барашек, которого ты просишь, — внутри.'],
+      ['Принц','Именно такого я и хотел! Смотри, он уснул.']
+    ],()=>{state.hasSheep=true;refreshJournal();toast('У тебя есть <b>ящик с барашком</b>. Отвези его на B-612.');});
+  } else say([['Лётчик','Береги ящик. И приделай барашку намордник, если у тебя там растёт цветок.']]);
+}
+
+function talkSnake(){
+  if(!state.snakeMet){
+    say([
+      ['Змея','Ты попал на Землю. Вот песок, вот скалы, вот ночь.'],
+      ['Принц','А где же люди? В пустыне немного одиноко.'],
+      ['Змея','Среди людей тоже одиноко.'],
+      ['Принц','Ты забавная. Тонкая, как палец.'],
+      ['Змея','Зато я сильнее королевского пальца. Я решаю любые загадки одним касанием.'],
+      ['Змея','Но ты чист и явился со звезды. Если однажды затоскуешь по своей планете — приходи к этому камню.'],
+      ['Принц','Я понял. Но зачем ты всё время говоришь загадками?'],
+      ['Змея','Я их все разгадываю.']
+    ],()=>{state.snakeMet=true;});
+  } else say([['Змея','Камень на месте. И я тоже. Спешить некуда.']]);
+}
+
+function talkFox(){
+  if(!state.foxTamed){
+    const t=state.foxTrust;
+    if(t<25)say([['Лис','Не подходи так быстро. Я не приручён — я убегу.'],
+                 ['Лис','Сядь неподалёку и не шевелись. <em>(зажми Shift и подходи медленно)</em>']]);
+    else if(t<70)say([['Лис','Уже лучше. Каждый день садись чуть ближе — и молчи.'],
+                      ['Лис','Слова только мешают понимать друг друга.']]);
+    else say([['Лис','Ещё немного. Я почти привык к твоим шагам.']]);
+    return;
+  }
+  say([
+    ['Лис','Вот теперь мы с тобой не такие, как все.'],
+    ['Лис','Приручить — значит создать узы. Пока я для тебя просто лис, а ты для меня просто мальчик, мы друг другу не нужны.'],
+    ['Лис','Но если ты меня приручишь, мы станем нужны друг другу. Ты будешь для меня единственным в мире.'],
+    ['Лис','Смотри: поля пшеницы мне ни к чему, я не ем хлеба. Но у тебя золотые волосы.'],
+    ['Лис','И когда ты меня приручишь, золото колосьев станет напоминать о тебе. И я полюблю шум ветра в поле.'],
+    ['Лис','Вот мой секрет, он очень прост: видеть по-настоящему умеет только сердце. Глазами самого главного не разглядеть.'],
+    ['Лис','И запомни: за того, кого приручил, ты отвечаешь всегда.'],
+    ['Принц','<em>Я отвечаю за мою розу…</em>']
+  ],()=>{toast('Пора возвращаться на <b>B-612</b>.');refreshJournal();});
+}
+
+function endingScene(){
+  state.ended=true;refreshJournal();
+  say([
+    ['Роза','Ты вернулся.'],
+    ['Принц','Вернулся. Я видел сад из пяти тысяч роз — и ни одна не была тобой.'],
+    ['Роза','Разумеется. Я же говорила, что я единственная.'],
+    ['Принц','Ты единственная не потому, что особенная. А потому, что ты — моя.']
+  ],()=>{
+    const e=document.getElementById('ending');
+    document.getElementById('endText').innerHTML=
+      'Принц вернулся к своему цветку, прочистил вулканы и накрыл розу колпаком на ночь.<br><br>'+
+      'Где-то на маленькой планете, которой нет ни на одной карте, живёт барашек. Съел он розу или нет — от этого меняется всё небо.<br><br>'+
+      '<em>Посмотри на звёзды и спроси себя: съел барашек цветок или не съел?</em>';
+    e.classList.add('on');
+  });
+}
+</script>
+<script>
+// ============================================================
+//  ЗАПУСК И ГЛАВНЫЙ ЦИКЛ
+// ============================================================
+let started=false,tPrev=performance.now(),tGlobal=0;
+
+function startGame(){
+  started=true;
+  document.getElementById('title').classList.add('gone');
+  setTimeout(()=>document.getElementById('title').style.display='none',900);
+  buildPlanet('b612');
+  const P=world.planet;
+  player.dir=dirLL(P.spawn[0],P.spawn[1]);
+  player.fwd.set(0,1,0).cross(player.dir).normalize();
+  player.face.copy(player.fwd);
+  document.querySelector('#planetTag .num').textContent=P.num;
+  document.querySelector('#planetTag .nm').textContent=P.name;
+  document.getElementById('journal').style.display='block';
+  refreshJournal();
+  updateSun(0);movePlayer(0.0001);
+  camera.position.copy(playerPos()).addScaledVector(player.dir,3.5).addScaledVector(player.fwd,-9);
+  setTimeout(()=>toast('Нажми <b>E</b> рядом с предметом, чтобы действовать. <b>M</b> — карта неба.'),1200);
+}
+document.getElementById('start').onclick=startGame;
+
+function tick(now){
+  requestAnimationFrame(tick);
+  const dt=Math.min(.05,(now-tPrev)/1000);tPrev=now;tGlobal+=dt;
+  if(started){
+    if(!ui.dialogue&&!ui.map&&!ui.busy)movePlayer(dt);
+    else {movePlayer(0.0001);}
+    // закат
+    if(sunsetT>0){sunsetT-=dt;world.sunAngle+=dt*.62;}
+    updateSun(dt);
+    updateCamera(dt);
+    world.actors.forEach(f=>f(tGlobal,dt));
+    updateInteract();
+  }
+  farPlanets.rotation.y=tGlobal*.004;
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(tick);
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
